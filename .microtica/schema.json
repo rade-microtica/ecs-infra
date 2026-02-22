@@ -18,45 +18,54 @@
             "t3.xlarge",
             "m5.large",
             "m5.xlarge"
-          ]
+          ],
+          "category": "allocation"
         },
         "MinSize": {
-          "type": "integer",
+          "type": "string",
           "description": "Minimum number of EC2 instances in the ECS cluster",
-          "default": 1,
-          "minimum": 0
+          "default": "1",
+          "category": "autoscaling",
+          "subcategory": "replicas"
         },
         "MaxSize": {
-          "type": "integer",
+          "type": "string",
           "description": "Maximum number of EC2 instances in the ECS cluster",
-          "default": 3,
-          "minimum": 1
+          "default": "3",
+          "category": "autoscaling",
+          "subcategory": "replicas"
         },
         "DesiredCapacity": {
-          "type": "integer",
+          "type": "string",
           "description": "Desired number of EC2 instances in the ECS cluster",
-          "default": 2,
-          "minimum": 0
+          "default": "2",
+          "category": "scaling",
+          "subcategory": "replicas"
         },
         "VpcId": {
           "type": "string",
-          "description": "VPC ID where resources will be deployed"
+          "description": "VPC ID where resources will be deployed",
+          "category": "advanced"
         },
         "PublicSubnet1Id": {
           "type": "string",
-          "description": "First public subnet ID (e.g. for ALBs)"
+          "description": "First public subnet ID (e.g. for ALBs)",
+          "category": "advanced"
         },
         "PublicSubnet2Id": {
           "type": "string",
-          "description": "Second public subnet ID (e.g. for ALBs)"
+          "description": "Second public subnet ID (e.g. for ALBs)",
+          "category": "advanced"
         },
         "PrivateSubnet1Id": {
           "type": "string",
-          "description": "First private subnet ID for ECS tasks and EC2 instances"
+          "description": "First private subnet ID for ECS tasks and EC2 instances",
+          "category": "advanced"
         },
         "PrivateSubnet2Id": {
           "type": "string",
-          "description": "Second private subnet ID for ECS tasks and EC2 instances"
+          "description": "Second private subnet ID for ECS tasks and EC2 instances",
+          "category": "advanced"
         }
       },
       "required": [
