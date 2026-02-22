@@ -322,7 +322,7 @@
           {
             "Key": "Name",
             "Value": {
-              "Fn::Sub": "${StackName}-ecs-instance"
+              "Fn::Sub": "${AWS::StackName}-ecs-instance"
             },
             "PropagateAtLaunch": true
           }
