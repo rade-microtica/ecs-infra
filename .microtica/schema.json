@@ -1,0 +1,77 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "schema://microtica/shared-ecs-cluster.json",
+  "title": "Shared ECS Cluster",
+  "type": "object",
+  "properties": {
+    "inputs": {
+      "type": "object",
+      "properties": {
+        "InstanceType": {
+          "type": "string",
+          "description": "EC2 instance type for ECS cluster",
+          "default": "t3.medium",
+          "enum": [
+            "t3.small",
+            "t3.medium",
+            "t3.large",
+            "t3.xlarge",
+            "m5.large",
+            "m5.xlarge"
+          ]
+        },
+        "MinSize": {
+          "type": "integer",
+          "description": "Minimum number of EC2 instances in the ECS cluster",
+          "default": 1,
+          "minimum": 0
+        },
+        "MaxSize": {
+          "type": "integer",
+          "description": "Maximum number of EC2 instances in the ECS cluster",
+          "default": 3,
+          "minimum": 1
+        },
+        "DesiredCapacity": {
+          "type": "integer",
+          "description": "Desired number of EC2 instances in the ECS cluster",
+          "default": 2,
+          "minimum": 0
+        },
+        "VpcId": {
+          "type": "string",
+          "description": "VPC ID where resources will be deployed",
+          "pattern": "^vpc-[a-f0-9]+$"
+        },
+        "PublicSubnet1Id": {
+          "type": "string",
+          "description": "First public subnet ID (e.g. for ALBs)",
+          "pattern": "^subnet-[a-f0-9]+$"
+        },
+        "PublicSubnet2Id": {
+          "type": "string",
+          "description": "Second public subnet ID (e.g. for ALBs)",
+          "pattern": "^subnet-[a-f0-9]+$"
+        },
+        "PrivateSubnet1Id": {
+          "type": "string",
+          "description": "First private subnet ID for ECS tasks and EC2 instances",
+          "pattern": "^subnet-[a-f0-9]+$"
+        },
+        "PrivateSubnet2Id": {
+          "type": "string",
+          "description": "Second private subnet ID for ECS tasks and EC2 instances",
+          "pattern": "^subnet-[a-f0-9]+$"
+        }
+      },
+      "required": [
+        "VpcId",
+        "PublicSubnet1Id",
+        "PublicSubnet2Id",
+        "PrivateSubnet1Id",
+        "PrivateSubnet2Id"
+      ]
+    }
+  },
+  "additionalProperties": false
+}

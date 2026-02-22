@@ -1,0 +1,444 @@
+{
+  "AWSTemplateFormatVersion": "2010-09-09",
+  "Description": "Shared ECS Cluster on EC2 (cluster, capacity provider, IAM, security groups). Apps (e.g. Judge0) deploy their own services and ALBs.",
+  "Parameters": {
+    "InstanceType": {
+      "Type": "String",
+      "Default": "t3.medium",
+      "AllowedValues": [
+        "t3.small",
+        "t3.medium",
+        "t3.large",
+        "t3.xlarge",
+        "m5.large",
+        "m5.xlarge"
+      ],
+      "Description": "EC2 instance type for ECS cluster"
+    },
+    "MinSize": {
+      "Type": "Number",
+      "Default": 1,
+      "Description": "Minimum number of EC2 instances in the ECS cluster"
+    },
+    "MaxSize": {
+      "Type": "Number",
+      "Default": 3,
+      "Description": "Maximum number of EC2 instances in the ECS cluster"
+    },
+    "DesiredCapacity": {
+      "Type": "Number",
+      "Default": 2,
+      "Description": "Desired number of EC2 instances in the ECS cluster"
+    },
+    "VpcId": {
+      "Type": "AWS::EC2::VPC::Id",
+      "Description": "VPC ID where resources will be deployed"
+    },
+    "PublicSubnet1Id": {
+      "Type": "AWS::EC2::Subnet::Id",
+      "Description": "First public subnet ID (e.g. for ALBs)"
+    },
+    "PublicSubnet2Id": {
+      "Type": "AWS::EC2::Subnet::Id",
+      "Description": "Second public subnet ID (e.g. for ALBs)"
+    },
+    "PrivateSubnet1Id": {
+      "Type": "AWS::EC2::Subnet::Id",
+      "Description": "First private subnet ID for ECS tasks and EC2 instances"
+    },
+    "PrivateSubnet2Id": {
+      "Type": "AWS::EC2::Subnet::Id",
+      "Description": "Second private subnet ID for ECS tasks and EC2 instances"
+    }
+  },
+  "Resources": {
+    "ECSSecurityGroup": {
+      "Type": "AWS::EC2::SecurityGroup",
+      "Properties": {
+        "GroupDescription": "Security group for ECS tasks (shared cluster)",
+        "VpcId": {
+          "Ref": "VpcId"
+        }
+      }
+    },
+    "ECSHostSecurityGroup": {
+      "Type": "AWS::EC2::SecurityGroup",
+      "Properties": {
+        "GroupDescription": "Security group for ECS EC2 instances",
+        "VpcId": {
+          "Ref": "VpcId"
+        },
+        "SecurityGroupIngress": []
+      }
+    },
+    "ECSTaskExecutionRole": {
+      "Type": "AWS::IAM::Role",
+      "Properties": {
+        "AssumeRolePolicyDocument": {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Effect": "Allow",
+              "Principal": {
+                "Service": "ecs-tasks.amazonaws.com"
+              },
+              "Action": "sts:AssumeRole",
+              "Condition": {
+                "ArnLike": {
+                  "aws:SourceArn": {
+                    "Fn::Sub": "arn:${AWS::Partition}:ecs:${AWS::Region}:${AWS::AccountId}:*"
+                  }
+                },
+                "StringEquals": {
+                  "aws:SourceAccount": {
+                    "Fn::Sub": "${AWS::AccountId}"
+                  }
+                }
+              }
+            }
+          ]
+        },
+        "Path": "/",
+        "ManagedPolicyArns": [
+          "arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy"
+        ]
+      }
+    },
+    "ECSTaskRole": {
+      "Type": "AWS::IAM::Role",
+      "Properties": {
+        "AssumeRolePolicyDocument": {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Effect": "Allow",
+              "Principal": {
+                "Service": "ecs-tasks.amazonaws.com"
+              },
+              "Action": "sts:AssumeRole"
+            }
+          ]
+        }
+      }
+    },
+    "ECSInstanceRole": {
+      "Type": "AWS::IAM::Role",
+      "Properties": {
+        "AssumeRolePolicyDocument": {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Effect": "Allow",
+              "Principal": {
+                "Service": "ec2.amazonaws.com"
+              },
+              "Action": "sts:AssumeRole"
+            }
+          ]
+        },
+        "Path": "/",
+        "ManagedPolicyArns": [
+          "arn:aws:iam::aws:policy/service-role/AmazonEC2ContainerServiceforEC2Role",
+          "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
+        ]
+      }
+    },
+    "ECSInstanceProfile": {
+      "Type": "AWS::IAM::InstanceProfile",
+      "Properties": {
+        "Path": "/",
+        "Roles": [
+          {
+            "Ref": "ECSInstanceRole"
+          }
+        ]
+      }
+    },
+    "EnableENITrunkingRole": {
+      "Type": "AWS::IAM::Role",
+      "Properties": {
+        "AssumeRolePolicyDocument": {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Effect": "Allow",
+              "Principal": {
+                "Service": "lambda.amazonaws.com"
+              },
+              "Action": "sts:AssumeRole"
+            }
+          ]
+        },
+        "ManagedPolicyArns": [
+          "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
+        ],
+        "Policies": [
+          {
+            "PolicyName": "EnableENITrunkingPolicy",
+            "PolicyDocument": {
+              "Version": "2012-10-17",
+              "Statement": [
+                {
+                  "Effect": "Allow",
+                  "Action": [
+                    "ecs:PutAccountSetting",
+                    "ecs:GetAccountSetting",
+                    "ecs:ListAccountSettings"
+                  ],
+                  "Resource": "*"
+                }
+              ]
+            }
+          }
+        ]
+      }
+    },
+    "EnableENITrunkingFunction": {
+      "Type": "AWS::Lambda::Function",
+      "Properties": {
+        "Runtime": "python3.11",
+        "Handler": "index.handler",
+        "Role": {
+          "Fn::GetAtt": [
+            "EnableENITrunkingRole",
+            "Arn"
+          ]
+        },
+        "Timeout": 60,
+        "Code": {
+          "ZipFile": {
+            "Fn::Sub": [
+              "import boto3\nimport json\nimport urllib.request\n\ndef send_response(event, context, response_status, response_data):\n    response_body = json.dumps({\n        'Status': response_status,\n        'Reason': 'See the details in CloudWatch Log Stream: ' + context.log_stream_name,\n        'PhysicalResourceId': context.log_stream_name,\n        'StackId': event['StackId'],\n        'RequestId': event['RequestId'],\n        'LogicalResourceId': event['LogicalResourceId'],\n        'Data': response_data\n    }).encode('utf-8')\n    \n    req = urllib.request.Request(event['ResponseURL'], data=response_body, method='PUT')\n    urllib.request.urlopen(req)\n\ndef handler(event, context):\n    ecs = boto3.client('ecs')\n    \n    try:\n        if event['RequestType'] == 'Delete':\n            send_response(event, context, 'SUCCESS', {'Message': 'ENI trunking setting left enabled'})\n            return\n        \n        try:\n            current_settings = ecs.list_account_settings(name='awsvpcTrunking')\n            for setting in current_settings.get('settings', []):\n                if setting.get('value') == 'enabled':\n                    print('ENI trunking is already enabled')\n                    send_response(event, context, 'SUCCESS', {'Message': 'ENI trunking was already enabled'})\n                    return\n        except Exception as check_error:\n            print(f'Could not check current setting: {str(check_error)}')\n        \n        response = ecs.put_account_setting(name='awsvpcTrunking', value='enabled')\n        send_response(event, context, 'SUCCESS', {'Message': 'ENI trunking enabled successfully'})\n    except Exception as e:\n        error_msg = str(e)\n        print(f'Error: {error_msg}')\n        if 'already' in error_msg.lower() or 'duplicate' in error_msg.lower():\n            send_response(event, context, 'SUCCESS', {'Message': f'ENI trunking setting handled: {error_msg}'})\n        else:\n            send_response(event, context, 'FAILED', {'Error': error_msg})\n",
+              {}
+            ]
+          }
+        }
+      }
+    },
+    "EnableENITrunking": {
+      "Type": "AWS::CloudFormation::CustomResource",
+      "DependsOn": [
+        "EnableENITrunkingFunction"
+      ],
+      "Properties": {
+        "ServiceToken": {
+          "Fn::GetAtt": [
+            "EnableENITrunkingFunction",
+            "Arn"
+          ]
+        }
+      }
+    },
+    "ECSCluster": {
+      "Type": "AWS::ECS::Cluster",
+      "Properties": {
+        "ClusterSettings": [
+          {
+            "Name": "containerInsights",
+            "Value": "enabled"
+          }
+        ]
+      }
+    },
+    "LaunchTemplate": {
+      "Type": "AWS::EC2::LaunchTemplate",
+      "Properties": {
+        "LaunchTemplateData": {
+          "ImageId": {
+            "Fn::Sub": "{{resolve:ssm:/aws/service/ecs/optimized-ami/amazon-linux-2/recommended/image_id}}"
+          },
+          "InstanceType": {
+            "Ref": "InstanceType"
+          },
+          "IamInstanceProfile": {
+            "Name": {
+              "Ref": "ECSInstanceProfile"
+            }
+          },
+          "SecurityGroupIds": [
+            {
+              "Ref": "ECSHostSecurityGroup"
+            }
+          ],
+          "UserData": {
+            "Fn::Base64": {
+              "Fn::Sub": "#!/bin/bash -xe\n\nmkdir -p /box\nchmod 1777 /box\nchown root:root /box\n\ncat >/etc/ecs/ecs.config <<'EOF'\nECS_CLUSTER=${ECSCluster}\nEOF\n"
+            }
+          },
+          "MetadataOptions": {
+            "HttpEndpoint": "enabled",
+            "HttpTokens": "required"
+          },
+          "BlockDeviceMappings": [
+            {
+              "DeviceName": "/dev/xvda",
+              "Ebs": {
+                "VolumeSize": 30,
+                "VolumeType": "gp3",
+                "DeleteOnTermination": true
+              }
+            }
+          ]
+        }
+      }
+    },
+    "AutoScalingGroup": {
+      "Type": "AWS::AutoScaling::AutoScalingGroup",
+      "DependsOn": [
+        "ECSCluster",
+        "ECSInstanceRole"
+      ],
+      "Properties": {
+        "VPCZoneIdentifier": [
+          {
+            "Ref": "PrivateSubnet1Id"
+          },
+          {
+            "Ref": "PrivateSubnet2Id"
+          }
+        ],
+        "LaunchTemplate": {
+          "LaunchTemplateId": {
+            "Ref": "LaunchTemplate"
+          },
+          "Version": {
+            "Fn::GetAtt": [
+              "LaunchTemplate",
+              "LatestVersionNumber"
+            ]
+          }
+        },
+        "MinSize": {
+          "Ref": "MinSize"
+        },
+        "MaxSize": {
+          "Ref": "MaxSize"
+        },
+        "DesiredCapacity": {
+          "Ref": "DesiredCapacity"
+        },
+        "NewInstancesProtectedFromScaleIn": false,
+        "Tags": [
+          {
+            "Key": "Name",
+            "Value": {
+              "Fn::Sub": "${StackName}-ecs-instance"
+            },
+            "PropagateAtLaunch": true
+          }
+        ]
+      },
+      "UpdatePolicy": {
+        "AutoScalingRollingUpdate": {
+          "MinInstancesInService": 1,
+          "MaxBatchSize": 1,
+          "PauseTime": "PT1M",
+          "WaitOnResourceSignals": false,
+          "SuspendProcesses": [
+            "AZRebalance",
+            "AlarmNotification",
+            "HealthCheck",
+            "ReplaceUnhealthy",
+            "ScheduledActions"
+          ]
+        }
+      }
+    },
+    "CapacityProvider": {
+      "Type": "AWS::ECS::CapacityProvider",
+      "Properties": {
+        "AutoScalingGroupProvider": {
+          "AutoScalingGroupArn": {
+            "Ref": "AutoScalingGroup"
+          },
+          "ManagedScaling": {
+            "InstanceWarmupPeriod": 60,
+            "MinimumScalingStepSize": 1,
+            "MaximumScalingStepSize": 100,
+            "Status": "ENABLED",
+            "TargetCapacity": 100
+          },
+          "ManagedTerminationProtection": "ENABLED"
+        }
+      }
+    },
+    "CapacityProviderAssociation": {
+      "Type": "AWS::ECS::ClusterCapacityProviderAssociations",
+      "Properties": {
+        "CapacityProviders": [
+          {
+            "Ref": "CapacityProvider"
+          }
+        ],
+        "Cluster": {
+          "Ref": "ECSCluster"
+        },
+        "DefaultCapacityProviderStrategy": [
+          {
+            "Base": 0,
+            "CapacityProvider": {
+              "Ref": "CapacityProvider"
+            },
+            "Weight": 1
+          }
+        ]
+      }
+    }
+  },
+  "Outputs": {
+    "VpcId": {
+      "Description": "VPC ID",
+      "Value": {
+        "Ref": "VpcId"
+      }
+    },
+    "ECSClusterName": {
+      "Description": "ECS Cluster Name",
+      "Value": {
+        "Ref": "ECSCluster"
+      }
+    },
+    "CapacityProvider": {
+      "Description": "Capacity provider for services to use when placing tasks",
+      "Value": {
+        "Ref": "CapacityProvider"
+      }
+    },
+    "ECSTaskExecutionRoleArn": {
+      "Description": "Role ARN for ECS task execution (pull images, logs)",
+      "Value": {
+        "Fn::GetAtt": [
+          "ECSTaskExecutionRole",
+          "Arn"
+        ]
+      }
+    },
+    "ECSTaskRoleArn": {
+      "Description": "Role ARN for ECS tasks (application runtime)",
+      "Value": {
+        "Fn::GetAtt": [
+          "ECSTaskRole",
+          "Arn"
+        ]
+      }
+    },
+    "ECSSecurityGroupId": {
+      "Description": "Security group ID for ECS tasks (use in app task definitions)",
+      "Value": {
+        "Ref": "ECSSecurityGroup"
+      }
+    },
+    "PrivateSubnet1Id": {
+      "Description": "First private subnet for ECS tasks",
+      "Value": {
+        "Ref": "PrivateSubnet1Id"
+      }
+    },
+    "PrivateSubnet2Id": {
+      "Description": "Second private subnet for ECS tasks",
+      "Value": {
+        "Ref": "PrivateSubnet2Id"
+      }
+    }
+  }
+}
