@@ -170,6 +170,16 @@
         }
       }
     },
+    "ServiceDiscoveryNamespace": {
+      "Type": "AWS::ServiceDiscovery::PrivateDnsNamespace",
+      "Properties": {
+        "Name": "local",
+        "Vpc": {
+          "Ref": "VpcId"
+        },
+        "Description": "Private DNS namespace for ECS service discovery"
+      }
+    },
     "ECSCluster": {
       "Type": "AWS::ECS::Cluster",
       "Properties": {
@@ -355,6 +365,12 @@
       "Description": "Second private subnet for ECS tasks",
       "Value": {
         "Ref": "PrivateSubnet2Id"
+      }
+    },
+    "ServiceDiscoveryNamespaceId": {
+      "Description": "Service Discovery namespace ID",
+      "Value": {
+        "Ref": "ServiceDiscoveryNamespace"
       }
     }
   }
