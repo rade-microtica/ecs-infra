@@ -52,15 +52,6 @@
     }
   },
   "Resources": {
-    "ECSSecurityGroup": {
-      "Type": "AWS::EC2::SecurityGroup",
-      "Properties": {
-        "GroupDescription": "Security group for ECS tasks (shared cluster)",
-        "VpcId": {
-          "Ref": "VpcId"
-        }
-      }
-    },
     "ECSHostSecurityGroup": {
       "Type": "AWS::EC2::SecurityGroup",
       "Properties": {
@@ -69,56 +60,6 @@
           "Ref": "VpcId"
         },
         "SecurityGroupIngress": []
-      }
-    },
-    "ECSTaskExecutionRole": {
-      "Type": "AWS::IAM::Role",
-      "Properties": {
-        "AssumeRolePolicyDocument": {
-          "Version": "2012-10-17",
-          "Statement": [
-            {
-              "Effect": "Allow",
-              "Principal": {
-                "Service": "ecs-tasks.amazonaws.com"
-              },
-              "Action": "sts:AssumeRole",
-              "Condition": {
-                "ArnLike": {
-                  "aws:SourceArn": {
-                    "Fn::Sub": "arn:${AWS::Partition}:ecs:${AWS::Region}:${AWS::AccountId}:*"
-                  }
-                },
-                "StringEquals": {
-                  "aws:SourceAccount": {
-                    "Fn::Sub": "${AWS::AccountId}"
-                  }
-                }
-              }
-            }
-          ]
-        },
-        "Path": "/",
-        "ManagedPolicyArns": [
-          "arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy"
-        ]
-      }
-    },
-    "ECSTaskRole": {
-      "Type": "AWS::IAM::Role",
-      "Properties": {
-        "AssumeRolePolicyDocument": {
-          "Version": "2012-10-17",
-          "Statement": [
-            {
-              "Effect": "Allow",
-              "Principal": {
-                "Service": "ecs-tasks.amazonaws.com"
-              },
-              "Action": "sts:AssumeRole"
-            }
-          ]
-        }
       }
     },
     "ECSInstanceRole": {
@@ -402,30 +343,6 @@
       "Description": "Capacity provider for services to use when placing tasks",
       "Value": {
         "Ref": "CapacityProvider"
-      }
-    },
-    "ECSTaskExecutionRoleArn": {
-      "Description": "Role ARN for ECS task execution (pull images, logs)",
-      "Value": {
-        "Fn::GetAtt": [
-          "ECSTaskExecutionRole",
-          "Arn"
-        ]
-      }
-    },
-    "ECSTaskRoleArn": {
-      "Description": "Role ARN for ECS tasks (application runtime)",
-      "Value": {
-        "Fn::GetAtt": [
-          "ECSTaskRole",
-          "Arn"
-        ]
-      }
-    },
-    "ECSSecurityGroupId": {
-      "Description": "Security group ID for ECS tasks (use in app task definitions)",
-      "Value": {
-        "Ref": "ECSSecurityGroup"
       }
     },
     "PrivateSubnet1Id": {
