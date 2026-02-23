@@ -195,6 +195,21 @@
         ]
       }
     },
+    "ALBToECSIngress": {
+      "Type": "AWS::EC2::SecurityGroupIngress",
+      "Properties": {
+        "GroupId": {
+          "Ref": "ECSHostSecurityGroup"
+        },
+        "IpProtocol": "tcp",
+        "FromPort": 32768,
+        "ToPort": 65535,
+        "SourceSecurityGroupId": {
+          "Ref": "InternalALBSecurityGroup"
+        },
+        "Description": "Allow internal ALB to reach ECS tasks on dynamic ports"
+      }
+    },
     "InternalLoadBalancer": {
       "Type": "AWS::ElasticLoadBalancingV2::LoadBalancer",
       "Properties": {
