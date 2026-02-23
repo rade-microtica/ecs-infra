@@ -642,6 +642,50 @@
           }
         ]
       }
+    },
+    "InternalALBHostedZone": {
+      "Type": "AWS::Route53::HostedZone",
+      "Properties": {
+        "Name": "blackprint.local",
+        "VPCs": [
+          {
+            "VPCId": {
+              "Ref": "VpcId"
+            },
+            "VPCRegion": {
+              "Ref": "AWS::Region"
+            }
+          }
+        ],
+        "HostedZoneConfig": {
+          "Comment": "Private hosted zone for internal ALB"
+        }
+      }
+    },
+    "InternalALBDnsRecord": {
+      "Type": "AWS::Route53::RecordSet",
+      "Properties": {
+        "HostedZoneId": {
+          "Ref": "InternalALBHostedZone"
+        },
+        "Name": "blackprint.local",
+        "Type": "A",
+        "AliasTarget": {
+          "DNSName": {
+            "Fn::GetAtt": [
+              "InternalLoadBalancer",
+              "DNSName"
+            ]
+          },
+          "HostedZoneId": {
+            "Fn::GetAtt": [
+              "InternalLoadBalancer",
+              "CanonicalHostedZoneID"
+            ]
+          },
+          "EvaluateTargetHealth": false
+        }
+      }
     }
   },
   "Outputs": {
@@ -736,6 +780,16 @@
       "Description": "Judge0 service target group ARN",
       "Value": {
         "Ref": "Judge0TargetGroup"
+      }
+    },
+    "InternalALBDomainName": {
+      "Description": "Internal ALB domain name",
+      "Value": "blackprint.local"
+    },
+    "InternalALBHostedZoneId": {
+      "Description": "Route53 hosted zone ID for internal ALB domain",
+      "Value": {
+        "Ref": "InternalALBHostedZone"
       }
     }
   }
