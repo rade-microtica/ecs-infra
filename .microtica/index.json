@@ -372,6 +372,12 @@
       "Value": {
         "Ref": "ServiceDiscoveryNamespace"
       }
+    },
+    "ECSHostSecurityGroupId": {
+      "Description": "ECS host security group ID",
+      "Value": {
+        "Ref": "ECSHostSecurityGroup"
+      }
     }
   }
 }
