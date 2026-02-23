@@ -585,7 +585,16 @@
         "DesiredCapacity": {
           "Ref": "DesiredCapacity"
         },
-        "NewInstancesProtectedFromScaleIn": false
+        "NewInstancesProtectedFromScaleIn": false,
+        "Tags": [
+          {
+            "Key": "Name",
+            "Value": {
+              "Fn::Sub": "${AWS::StackName}-ECS-Instance"
+            },
+            "PropagateAtLaunch": true
+          }
+        ]
       },
       "UpdatePolicy": {
         "AutoScalingRollingUpdate": {
