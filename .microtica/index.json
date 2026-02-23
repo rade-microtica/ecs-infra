@@ -286,12 +286,8 @@
             "UrlRewriteConfig": {
               "Rewrites": [
                 {
-                  "Regex": "^/catalog(/.*)$",
+                  "Regex": "^/catalog(/.*)?$",
                   "Replace": "$1"
-                },
-                {
-                  "Regex": "^/catalog$",
-                  "Replace": "/"
                 }
               ]
             }
@@ -349,12 +345,8 @@
             "UrlRewriteConfig": {
               "Rewrites": [
                 {
-                  "Regex": "^/user(/.*)$",
+                  "Regex": "^/user(/.*)?$",
                   "Replace": "$1"
-                },
-                {
-                  "Regex": "^/user$",
-                  "Replace": "/"
                 }
               ]
             }
@@ -412,12 +404,8 @@
             "UrlRewriteConfig": {
               "Rewrites": [
                 {
-                  "Regex": "^/payment(/.*)$",
+                  "Regex": "^/payment(/.*)?$",
                   "Replace": "$1"
-                },
-                {
-                  "Regex": "^/payment$",
-                  "Replace": "/"
                 }
               ]
             }
@@ -475,12 +463,8 @@
             "UrlRewriteConfig": {
               "Rewrites": [
                 {
-                  "Regex": "^/judge0(/.*)$",
+                  "Regex": "^/judge0(/.*)?$",
                   "Replace": "$1"
-                },
-                {
-                  "Regex": "^/judge0$",
-                  "Replace": "/"
                 }
               ]
             }
