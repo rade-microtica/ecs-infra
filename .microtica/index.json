@@ -1,6 +1,6 @@
 {
   "AWSTemplateFormatVersion": "2010-09-09",
-  "Description": "Shared ECS Cluster on EC2 (cluster, capacity provider, IAM, security groups). Apps (e.g. Judge0) deploy their own services and ALBs.",
+  "Description": "Shared ECS Cluster on EC2 (cluster, capacity provider, IAM, security groups, internal ALB). Apps deploy their own services and reference the shared internal ALB.",
   "Parameters": {
     "InstanceType": {
       "Type": "String",
@@ -170,6 +170,324 @@
         }
       }
     },
+    "InternalALBSecurityGroup": {
+      "Type": "AWS::EC2::SecurityGroup",
+      "Properties": {
+        "GroupDescription": "Security group for internal ALB",
+        "VpcId": {
+          "Ref": "VpcId"
+        },
+        "SecurityGroupIngress": [
+          {
+            "IpProtocol": "tcp",
+            "FromPort": 80,
+            "ToPort": 80,
+            "CidrIp": "0.0.0.0/0",
+            "Description": "HTTP from VPC (internal ALB, so only accessible within VPC)"
+          },
+          {
+            "IpProtocol": "tcp",
+            "FromPort": 443,
+            "ToPort": 443,
+            "CidrIp": "0.0.0.0/0",
+            "Description": "HTTPS from VPC (internal ALB, so only accessible within VPC)"
+          }
+        ]
+      }
+    },
+    "InternalLoadBalancer": {
+      "Type": "AWS::ElasticLoadBalancingV2::LoadBalancer",
+      "Properties": {
+        "Type": "application",
+        "Scheme": "internal",
+        "IpAddressType": "ipv4",
+        "Subnets": [
+          {
+            "Ref": "PrivateSubnet1Id"
+          },
+          {
+            "Ref": "PrivateSubnet2Id"
+          }
+        ],
+        "SecurityGroups": [
+          {
+            "Ref": "InternalALBSecurityGroup"
+          }
+        ]
+      }
+    },
+    "InternalALBDefaultListener": {
+      "Type": "AWS::ElasticLoadBalancingV2::Listener",
+      "Properties": {
+        "LoadBalancerArn": {
+          "Ref": "InternalLoadBalancer"
+        },
+        "Port": 80,
+        "Protocol": "HTTP",
+        "DefaultActions": [
+          {
+            "Type": "fixed-response",
+            "FixedResponseConfig": {
+              "StatusCode": "404",
+              "ContentType": "text/plain",
+              "MessageBody": "No service found"
+            }
+          }
+        ]
+      }
+    },
+    "CatalogTargetGroup": {
+      "Type": "AWS::ElasticLoadBalancingV2::TargetGroup",
+      "Properties": {
+        "Port": 1024,
+        "Protocol": "HTTP",
+        "VpcId": {
+          "Ref": "VpcId"
+        },
+        "TargetType": "instance",
+        "HealthCheckEnabled": true,
+        "HealthCheckPath": "/",
+        "HealthCheckProtocol": "HTTP",
+        "HealthCheckIntervalSeconds": 30,
+        "HealthyThresholdCount": 2,
+        "UnhealthyThresholdCount": 3,
+        "HealthCheckPort": "traffic-port"
+      }
+    },
+    "CatalogListenerRule": {
+      "Type": "AWS::ElasticLoadBalancingV2::ListenerRule",
+      "Properties": {
+        "ListenerArn": {
+          "Ref": "InternalALBDefaultListener"
+        },
+        "Priority": 100,
+        "Conditions": [
+          {
+            "Field": "path-pattern",
+            "PathPatternConfig": {
+              "Values": [
+                "/catalog/*",
+                "/catalog"
+              ]
+            }
+          }
+        ],
+        "Actions": [
+          {
+            "Type": "forward",
+            "TargetGroupArn": {
+              "Ref": "CatalogTargetGroup"
+            }
+          }
+        ],
+        "Transforms": [
+          {
+            "Type": "url-rewrite",
+            "UrlRewriteConfig": {
+              "Rewrites": [
+                {
+                  "Regex": "^/catalog(/.*)$",
+                  "Replace": "$1"
+                },
+                {
+                  "Regex": "^/catalog$",
+                  "Replace": "/"
+                }
+              ]
+            }
+          }
+        ]
+      }
+    },
+    "UserTargetGroup": {
+      "Type": "AWS::ElasticLoadBalancingV2::TargetGroup",
+      "Properties": {
+        "Port": 1024,
+        "Protocol": "HTTP",
+        "VpcId": {
+          "Ref": "VpcId"
+        },
+        "TargetType": "instance",
+        "HealthCheckEnabled": true,
+        "HealthCheckPath": "/",
+        "HealthCheckProtocol": "HTTP",
+        "HealthCheckIntervalSeconds": 30,
+        "HealthyThresholdCount": 2,
+        "UnhealthyThresholdCount": 3,
+        "HealthCheckPort": "traffic-port"
+      }
+    },
+    "UserListenerRule": {
+      "Type": "AWS::ElasticLoadBalancingV2::ListenerRule",
+      "Properties": {
+        "ListenerArn": {
+          "Ref": "InternalALBDefaultListener"
+        },
+        "Priority": 200,
+        "Conditions": [
+          {
+            "Field": "path-pattern",
+            "PathPatternConfig": {
+              "Values": [
+                "/user/*",
+                "/user"
+              ]
+            }
+          }
+        ],
+        "Actions": [
+          {
+            "Type": "forward",
+            "TargetGroupArn": {
+              "Ref": "UserTargetGroup"
+            }
+          }
+        ],
+        "Transforms": [
+          {
+            "Type": "url-rewrite",
+            "UrlRewriteConfig": {
+              "Rewrites": [
+                {
+                  "Regex": "^/user(/.*)$",
+                  "Replace": "$1"
+                },
+                {
+                  "Regex": "^/user$",
+                  "Replace": "/"
+                }
+              ]
+            }
+          }
+        ]
+      }
+    },
+    "PaymentTargetGroup": {
+      "Type": "AWS::ElasticLoadBalancingV2::TargetGroup",
+      "Properties": {
+        "Port": 1024,
+        "Protocol": "HTTP",
+        "VpcId": {
+          "Ref": "VpcId"
+        },
+        "TargetType": "instance",
+        "HealthCheckEnabled": true,
+        "HealthCheckPath": "/",
+        "HealthCheckProtocol": "HTTP",
+        "HealthCheckIntervalSeconds": 30,
+        "HealthyThresholdCount": 2,
+        "UnhealthyThresholdCount": 3,
+        "HealthCheckPort": "traffic-port"
+      }
+    },
+    "PaymentListenerRule": {
+      "Type": "AWS::ElasticLoadBalancingV2::ListenerRule",
+      "Properties": {
+        "ListenerArn": {
+          "Ref": "InternalALBDefaultListener"
+        },
+        "Priority": 300,
+        "Conditions": [
+          {
+            "Field": "path-pattern",
+            "PathPatternConfig": {
+              "Values": [
+                "/payment/*",
+                "/payment"
+              ]
+            }
+          }
+        ],
+        "Actions": [
+          {
+            "Type": "forward",
+            "TargetGroupArn": {
+              "Ref": "PaymentTargetGroup"
+            }
+          }
+        ],
+        "Transforms": [
+          {
+            "Type": "url-rewrite",
+            "UrlRewriteConfig": {
+              "Rewrites": [
+                {
+                  "Regex": "^/payment(/.*)$",
+                  "Replace": "$1"
+                },
+                {
+                  "Regex": "^/payment$",
+                  "Replace": "/"
+                }
+              ]
+            }
+          }
+        ]
+      }
+    },
+    "Judge0TargetGroup": {
+      "Type": "AWS::ElasticLoadBalancingV2::TargetGroup",
+      "Properties": {
+        "Port": 2358,
+        "Protocol": "HTTP",
+        "VpcId": {
+          "Ref": "VpcId"
+        },
+        "TargetType": "instance",
+        "HealthCheckEnabled": true,
+        "HealthCheckPath": "/",
+        "HealthCheckProtocol": "HTTP",
+        "HealthCheckIntervalSeconds": 30,
+        "HealthyThresholdCount": 2,
+        "UnhealthyThresholdCount": 3,
+        "HealthCheckPort": "traffic-port"
+      }
+    },
+    "Judge0ListenerRule": {
+      "Type": "AWS::ElasticLoadBalancingV2::ListenerRule",
+      "Properties": {
+        "ListenerArn": {
+          "Ref": "InternalALBDefaultListener"
+        },
+        "Priority": 400,
+        "Conditions": [
+          {
+            "Field": "path-pattern",
+            "PathPatternConfig": {
+              "Values": [
+                "/judge0/*",
+                "/judge0"
+              ]
+            }
+          }
+        ],
+        "Actions": [
+          {
+            "Type": "forward",
+            "TargetGroupArn": {
+              "Ref": "Judge0TargetGroup"
+            }
+          }
+        ],
+        "Transforms": [
+          {
+            "Type": "url-rewrite",
+            "UrlRewriteConfig": {
+              "Rewrites": [
+                {
+                  "Regex": "^/judge0(/.*)$",
+                  "Replace": "$1"
+                },
+                {
+                  "Regex": "^/judge0$",
+                  "Replace": "/"
+                }
+              ]
+            }
+          }
+        ]
+      }
+    },
     "ServiceDiscoveryNamespace": {
       "Type": "AWS::ServiceDiscovery::PrivateDnsNamespace",
       "Properties": {
@@ -268,16 +586,7 @@
         "DesiredCapacity": {
           "Ref": "DesiredCapacity"
         },
-        "NewInstancesProtectedFromScaleIn": false,
-        "Tags": [
-          {
-            "Key": "Name",
-            "Value": {
-              "Fn::Sub": "${AWS::StackName}-ecs-instance"
-            },
-            "PropagateAtLaunch": true
-          }
-        ]
+        "NewInstancesProtectedFromScaleIn": false
       },
       "UpdatePolicy": {
         "AutoScalingRollingUpdate": {
@@ -377,6 +686,57 @@
       "Description": "ECS host security group ID",
       "Value": {
         "Ref": "ECSHostSecurityGroup"
+      }
+    },
+    "InternalLoadBalancerArn": {
+      "Description": "Internal ALB ARN",
+      "Value": {
+        "Ref": "InternalLoadBalancer"
+      }
+    },
+    "InternalLoadBalancerDnsName": {
+      "Description": "Internal ALB DNS name",
+      "Value": {
+        "Fn::GetAtt": [
+          "InternalLoadBalancer",
+          "DNSName"
+        ]
+      }
+    },
+    "InternalALBSecurityGroupId": {
+      "Description": "Internal ALB security group ID",
+      "Value": {
+        "Ref": "InternalALBSecurityGroup"
+      }
+    },
+    "InternalALBListenerArn": {
+      "Description": "Internal ALB default listener ARN",
+      "Value": {
+        "Ref": "InternalALBDefaultListener"
+      }
+    },
+    "CatalogTargetGroupArn": {
+      "Description": "Catalog service target group ARN",
+      "Value": {
+        "Ref": "CatalogTargetGroup"
+      }
+    },
+    "UserTargetGroupArn": {
+      "Description": "User service target group ARN",
+      "Value": {
+        "Ref": "UserTargetGroup"
+      }
+    },
+    "PaymentTargetGroupArn": {
+      "Description": "Payment service target group ARN",
+      "Value": {
+        "Ref": "PaymentTargetGroup"
+      }
+    },
+    "Judge0TargetGroupArn": {
+      "Description": "Judge0 service target group ARN",
+      "Value": {
+        "Ref": "Judge0TargetGroup"
       }
     }
   }
