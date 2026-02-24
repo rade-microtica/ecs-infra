@@ -487,6 +487,65 @@
         ]
       }
     },
+    "RedisTargetGroup": {
+      "Type": "AWS::ElasticLoadBalancingV2::TargetGroup",
+      "Properties": {
+        "Port": 6379,
+        "Protocol": "HTTP",
+        "VpcId": {
+          "Ref": "VpcId"
+        },
+        "TargetType": "instance",
+        "HealthCheckEnabled": true,
+        "HealthCheckPath": "/",
+        "HealthCheckProtocol": "HTTP",
+        "HealthCheckIntervalSeconds": 30,
+        "HealthyThresholdCount": 2,
+        "UnhealthyThresholdCount": 3,
+        "HealthCheckPort": "traffic-port"
+      }
+    },
+    "RedisListenerRule": {
+      "Type": "AWS::ElasticLoadBalancingV2::ListenerRule",
+      "Properties": {
+        "ListenerArn": {
+          "Ref": "InternalALBDefaultListener"
+        },
+        "Priority": 500,
+        "Conditions": [
+          {
+            "Field": "path-pattern",
+            "PathPatternConfig": {
+              "Values": [
+                "/redis/*",
+                "/redis"
+              ]
+            }
+          }
+        ],
+        "Actions": [
+          {
+            "Type": "forward",
+            "TargetGroupArn": {
+              "Ref": "RedisTargetGroup"
+            }
+          }
+        ],
+        "Transforms": [
+          {
+            "Type": "url-rewrite",
+            "UrlRewriteConfig": {
+              "Rewrites": [
+                {
+                  "Regex": "^/redis(/.*)?$",
+                  "Replace": "$1"
+                }
+              ]
+            }
+          }
+        ]
+      }
+    },
     "ECSCluster": {
       "Type": "AWS::ECS::Cluster",
       "Properties": {
@@ -773,6 +832,12 @@
       "Description": "Judge0 service target group ARN",
       "Value": {
         "Ref": "Judge0TargetGroup"
+      }
+    },
+    "RedisTargetGroupArn": {
+      "Description": "Redis service target group ARN",
+      "Value": {
+        "Ref": "RedisTargetGroup"
       }
     },
     "InternalALBDomainName": {
